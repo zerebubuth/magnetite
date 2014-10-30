@@ -1,0 +1,5 @@
+[package]
+
+name = "rocksdb"
+version = "0.0.1"
+authors = ["Matt Amos <zerebubuth@gmail.com>"]
