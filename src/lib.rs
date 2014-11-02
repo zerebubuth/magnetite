@@ -6,6 +6,9 @@ pub mod rocksdb {
 
         pub enum Db {}
         pub enum Options {}
+        pub enum WriteOptions {}
+        pub enum ReadOptions {}
+        // pub enum Snapshot {}
 
         #[link(name = "rocksdb")]
         extern "C" {
@@ -47,18 +50,75 @@ pub mod rocksdb {
             pub fn rocksdb_options_set_paranoid_checks(
                 opt: *mut Options, flag: libc::uint8_t);
 
+            pub fn rocksdb_writeoptions_create() -> *mut WriteOptions;
+            pub fn rocksdb_writeoptions_destroy(
+                opts: *mut WriteOptions);
+            pub fn rocksdb_writeoptions_set_sync(
+                opts: *mut WriteOptions, flag: libc::uint8_t);
+            pub fn rocksdb_writeoptions_disable_WAL(
+                opts: *mut WriteOptions, flag: libc::c_int);
+
+            pub fn rocksdb_readoptions_create() -> *mut ReadOptions;
+            pub fn rocksdb_readoptions_destroy(
+                opts: *mut ReadOptions);
+            pub fn rocksdb_readoptions_set_verify_checksums(
+                opts: *mut ReadOptions, flag: libc::uint8_t);
+            pub fn rocksdb_readoptions_set_fill_cache(
+                opts: *mut ReadOptions, flag: libc::uint8_t);
+            // pub fn rocksdb_readoptions_set_snapshot(
+            //     opts: *mut ReadOptions, snapshot: *const Snapshot);
+            // pub fn rocksdb_readoptions_set_iterate_upper_bound(
+            //     opts: *mut ReadOptions, key: *const libc::c_char,
+            //     key_len: libc::size_t);
+            pub fn rocksdb_readoptions_set_read_tier(
+                opts: *mut ReadOptions, tier: libc::c_int);
+            pub fn rocksdb_readoptions_set_tailing(
+                opts: *mut ReadOptions, flag: libc::uint8_t);
+
             pub fn rocksdb_open(
                 options: *const Options,
                 name: *const libc::c_char,
                 errptr: *mut *mut libc::c_char)
                 -> *mut Db;
             pub fn rocksdb_close(db: *mut Db);
+            // pub fn rocksdb_create_snapshot(db: *mut Db) -> *const Snapshot;
+            pub fn rocksdb_get(
+                db: *mut Db, read_opts: *const ReadOptions,
+                key: *const libc::c_char, keylen: libc::size_t,
+                vallen: *mut libc::size_t,
+                errptr: *mut *mut libc::c_char)
+                -> *mut libc::c_char;
+            pub fn rocksdb_put(
+                db: *mut Db, write_opts: *const WriteOptions,
+                key: *const libc::c_char, keylen: libc::size_t,
+                val: *const libc::c_char, vallen: libc::size_t,
+                errptr: *mut *mut libc::c_char);
+                
+            // pub fn rocksdb_release_snapshot(
+            //     db: *mut Db, snapshot: *const Snapshot);
         }
     }
     
     pub struct Options {
         ptr: *mut ffi::Options,
     }
+
+    pub struct ReadOptions {
+        ptr: *mut ffi::ReadOptions,
+    }
+
+    pub struct WriteOptions {
+        ptr: *mut ffi::WriteOptions,
+    }
+
+    pub struct Db {
+        ptr: *mut ffi::Db,
+    }
+
+    // pub struct Snapshot<'a> {
+    //     db: &'a Db,
+    //     ptr: *const ffi::Snapshot,
+    // }
 
     impl Options {
 
@@ -141,8 +201,67 @@ pub mod rocksdb {
         }
     }
 
-    pub struct Db {
-        ptr: *mut ffi::Db,
+    impl WriteOptions {
+        pub fn new() -> WriteOptions {
+            WriteOptions {
+                ptr: unsafe { ffi::rocksdb_writeoptions_create() }
+            }
+        }
+
+        pub fn set_sync(&mut self, flag: bool) {
+            unsafe { ffi::rocksdb_writeoptions_set_sync(self.ptr, flag as libc::uint8_t); }
+        }
+
+        pub fn disable_wal(&mut self, flag: bool) {
+            unsafe { ffi::rocksdb_writeoptions_disable_WAL(self.ptr, flag as libc::c_int); }
+        }
+    }
+
+    impl Drop for WriteOptions {
+        fn drop(&mut self) {
+            unsafe { ffi::rocksdb_writeoptions_destroy(self.ptr); }
+        }
+    }
+
+    impl ReadOptions {
+        pub fn new() -> ReadOptions {
+            ReadOptions {
+                ptr: unsafe { ffi::rocksdb_readoptions_create() }
+            }
+        }
+
+        pub fn set_verify_checksums(&mut self, flag: bool) {
+            unsafe { ffi::rocksdb_readoptions_set_verify_checksums(self.ptr, flag as libc::uint8_t); }
+        }
+
+        pub fn set_fill_cache(&mut self, flag: bool) {
+            unsafe { ffi::rocksdb_readoptions_set_fill_cache(self.ptr, flag as libc::uint8_t); }
+        }
+
+        // pub fn set_snapshot(&mut self, snapshot: &Snapshot) {
+        //     unsafe { ffi::rocksdb_readoptions_set_snapshot(self.ptr, snapshot.ptr); }
+        // }
+
+        // NOTE: this is totally broken - it assigns a pointer from the stack, and
+        // the lifetime / ownership is not specified.
+        //
+        // pub fn set_iterate_upper_bound(&mut self, key: &str) {
+        //     unsafe { ffi::rocksdb_readoptions_(self.ptr, flag as libc::uint8_t); }
+        // }
+
+        pub fn set_read_tier(&mut self, tier: int) {
+            unsafe { ffi::rocksdb_readoptions_set_read_tier(self.ptr, tier as libc::c_int); }
+        }
+
+        pub fn set_tailing(&mut self, flag: bool) {
+            unsafe { ffi::rocksdb_readoptions_set_tailing(self.ptr, flag as libc::uint8_t); }
+        }
+    }
+
+    impl Drop for ReadOptions {
+        fn drop(&mut self) {
+            unsafe { ffi::rocksdb_readoptions_destroy(self.ptr); }
+        }
     }
 
     impl Db {
@@ -169,6 +288,77 @@ pub mod rocksdb {
                 }
             }
         }
+
+        // pub fn snapshot(&mut self) -> Snapshot {
+        //     Snapshot {
+        //         db: self,
+        //         ptr: unsafe { ffi::rocksdb_create_snapshot(self.ptr) }
+        //     }
+        // }
+
+        pub fn get(&mut self, read_opts: &ReadOptions, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
+            use std::ptr;
+            use std::c_str::CString;
+
+            unsafe {
+                let mut errstr : *mut libc::c_char = ptr::null_mut::<libc::c_char>();
+                let key_ptr = key.as_ptr();
+                let mut vallen : libc::size_t = 0;
+                let ptr = ffi::rocksdb_get(self.ptr, 
+                                           read_opts.ptr as *const ffi::ReadOptions,
+                                           key_ptr as *const libc::c_char,
+                                           key.len() as libc::size_t,
+                                           &mut vallen,
+                                           &mut errstr);
+
+                if errstr.is_null() {
+                    Ok(if ptr.is_null() {
+                        None
+
+                    } else {
+                        use std::vec::raw;
+                        let arr = raw::from_buf(ptr as *const u8, vallen as uint);
+                        libc::free(ptr as *mut libc::c_void);
+                        Some(arr)
+                    })
+
+                } else {
+                    let cstring = CString::new(errstr as *const libc::c_char, true);
+                    Err(String::from_str(
+                        cstring
+                            .as_str()
+                            .expect("Bad UTF-8 in rocksdb_get error message")))
+                }
+            }
+        }
+
+        pub fn put(&mut self, write_opts: &WriteOptions, key: &[u8], val: &[u8])
+                   -> Result<(), String> {
+            use std::ptr;
+            use std::c_str::CString;
+
+            unsafe {
+                let mut errstr : *mut libc::c_char = ptr::null_mut::<libc::c_char>();
+                let key_ptr = key.as_ptr();
+                let val_ptr = val.as_ptr();
+                ffi::rocksdb_put(
+                    self.ptr, write_opts.ptr as *const ffi::WriteOptions,
+                    key_ptr as *const libc::c_char, key.len() as libc::size_t,
+                    val_ptr as *const libc::c_char, val.len() as libc::size_t,
+                    &mut errstr);
+
+                if errstr.is_null() {
+                    Ok(())
+
+                } else {
+                    let cstring = CString::new(errstr as *const libc::c_char, true);
+                    Err(String::from_str(
+                        cstring
+                            .as_str()
+                            .expect("Bad UTF-8 in rocksdb_put error message")))
+                }
+            }
+        }
     }
 
     impl Drop for Db {
@@ -176,6 +366,27 @@ pub mod rocksdb {
             unsafe { ffi::rocksdb_close(self.ptr); }
         }
     }
+
+    /*
+/home/matt/Programming/rust/rocksdb/src/lib.rs:295:5: 299:6 error: cannot implement a destructor on a structure with type parameters [E0141]
+/home/matt/Programming/rust/rocksdb/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
+/home/matt/Programming/rust/rocksdb/src/lib.rs:296         fn drop(&mut self) {
+/home/matt/Programming/rust/rocksdb/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
+/home/matt/Programming/rust/rocksdb/src/lib.rs:298         }
+/home/matt/Programming/rust/rocksdb/src/lib.rs:299     }
+/home/matt/Programming/rust/rocksdb/src/lib.rs:295:5: 299:6 note: use "#[unsafe_destructor]" on the implementation to force the compiler to allow this
+/home/matt/Programming/rust/rocksdb/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
+/home/matt/Programming/rust/rocksdb/src/lib.rs:296         fn drop(&mut self) {
+/home/matt/Programming/rust/rocksdb/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
+/home/matt/Programming/rust/rocksdb/src/lib.rs:298         }
+/home/matt/Programming/rust/rocksdb/src/lib.rs:299     }
+
+     */
+    // impl<'a> Drop for Snapshot<'a> {
+    //     fn drop(&mut self) {
+    //         unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
+    //     }
+    // }
 }
 
 #[test]
@@ -201,7 +412,18 @@ fn test_db() {
     let dbpath = tmpdir.path().join("db");
     let tmppath = dbpath.as_str().unwrap();
 
+    let write_opts = rocksdb::WriteOptions::new();
+    let read_opts = rocksdb::ReadOptions::new();
+
     opts.set_create_if_missing(true);
     let mut db = rocksdb::Db::new(&opts, tmppath).unwrap();
-}
 
+    let key = [104u8, 101u8, 108u8, 108u8, 111u8];
+    let val = [119u8, 111u8, 114u8, 108u8, 100u8];
+    let first_value = db.get(&read_opts, key).unwrap();
+    assert!(first_value.is_none());
+    db.put(&write_opts, key, val).unwrap();
+    let second_value = db.get(&read_opts, key).unwrap();
+    assert!(second_value.is_some());
+    assert!(second_value.unwrap().as_slice() == val);
+}
