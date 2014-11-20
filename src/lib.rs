@@ -1,4 +1,4 @@
-pub mod rocksdb {
+pub mod magnetite {
     extern crate libc;
 
     mod ffi {
@@ -367,19 +367,19 @@ pub mod rocksdb {
         }
     }
 
-    /*
-/home/matt/Programming/rust/rocksdb/src/lib.rs:295:5: 299:6 error: cannot implement a destructor on a structure with type parameters [E0141]
-/home/matt/Programming/rust/rocksdb/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
-/home/matt/Programming/rust/rocksdb/src/lib.rs:296         fn drop(&mut self) {
-/home/matt/Programming/rust/rocksdb/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
-/home/matt/Programming/rust/rocksdb/src/lib.rs:298         }
-/home/matt/Programming/rust/rocksdb/src/lib.rs:299     }
-/home/matt/Programming/rust/rocksdb/src/lib.rs:295:5: 299:6 note: use "#[unsafe_destructor]" on the implementation to force the compiler to allow this
-/home/matt/Programming/rust/rocksdb/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
-/home/matt/Programming/rust/rocksdb/src/lib.rs:296         fn drop(&mut self) {
-/home/matt/Programming/rust/rocksdb/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
-/home/matt/Programming/rust/rocksdb/src/lib.rs:298         }
-/home/matt/Programming/rust/rocksdb/src/lib.rs:299     }
+    /* TODO: fix this error!
+/src/lib.rs:295:5: 299:6 error: cannot implement a destructor on a structure with type parameters [E0141]
+/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
+/src/lib.rs:296         fn drop(&mut self) {
+/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
+/src/lib.rs:298         }
+/src/lib.rs:299     }
+/src/lib.rs:295:5: 299:6 note: use "#[unsafe_destructor]" on the implementation to force the compiler to allow this
+/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
+/src/lib.rs:296         fn drop(&mut self) {
+/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
+/src/lib.rs:298         }
+/src/lib.rs:299     }
 
      */
     // impl<'a> Drop for Snapshot<'a> {
@@ -391,12 +391,12 @@ pub mod rocksdb {
 
 #[test]
 fn test_options() {
-    let mut opts = rocksdb::Options::new();
+    let mut opts = magnetite::Options::new();
     opts.increase_parallelism(2);
     opts.optimize_for_point_lookup(16);
     opts.optimize_level_style_compaction(16);
     opts.optimize_universal_style_compaction(16);
-    opts.set_compression_per_level([1,2,3,4,5]);
+    opts.set_compression_per_level([1,2,3,4,5].as_slice());
     opts.set_create_if_missing(true);
     opts.set_create_missing_column_families(true);
     opts.set_error_if_exists(true);
@@ -407,23 +407,23 @@ fn test_options() {
 fn test_db() {
     use std::io;
 
-    let mut opts = rocksdb::Options::new();
-    let tmpdir = io::TempDir::new("rocksdb_create_db").unwrap();
+    let mut opts = magnetite::Options::new();
+    let tmpdir = io::TempDir::new("magnetite_create_db").unwrap();
     let dbpath = tmpdir.path().join("db");
     let tmppath = dbpath.as_str().unwrap();
 
-    let write_opts = rocksdb::WriteOptions::new();
-    let read_opts = rocksdb::ReadOptions::new();
+    let write_opts = magnetite::WriteOptions::new();
+    let read_opts = magnetite::ReadOptions::new();
 
     opts.set_create_if_missing(true);
-    let mut db = rocksdb::Db::new(&opts, tmppath).unwrap();
+    let mut db = magnetite::Db::new(&opts, tmppath).unwrap();
 
     let key = [104u8, 101u8, 108u8, 108u8, 111u8];
     let val = [119u8, 111u8, 114u8, 108u8, 100u8];
-    let first_value = db.get(&read_opts, key).unwrap();
+    let first_value = db.get(&read_opts, key.as_slice()).unwrap();
     assert!(first_value.is_none());
-    db.put(&write_opts, key, val).unwrap();
-    let second_value = db.get(&read_opts, key).unwrap();
+    db.put(&write_opts, key.as_slice(), val.as_slice()).unwrap();
+    let second_value = db.get(&read_opts, key.as_slice()).unwrap();
     assert!(second_value.is_some());
-    assert!(second_value.unwrap().as_slice() == val);
+    assert!(second_value.unwrap().as_slice() == val.as_slice());
 }

@@ -1,5 +1,10 @@
 [package]
 
-name = "rocksdb"
+name = "magnetite"
 version = "0.0.1"
 authors = ["Matt Amos <zerebubuth@gmail.com>"]
+description = "A wrapper around RocksDB, an embedded key-value store."
+homepage = "https://github.com/zerebubuth/magnetite"
+repository = "https://github.com/zerebubuth/magnetite.git"
+readme = "README.md"
+license = "BSD-3-Clause"
