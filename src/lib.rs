@@ -98,19 +98,23 @@ pub mod magnetite {
             //     db: *mut Db, snapshot: *const Snapshot);
         }
     }
-    
+
+    #[experimental]
     pub struct Options {
         ptr: *mut ffi::Options,
     }
 
+    #[experimental]
     pub struct ReadOptions {
         ptr: *mut ffi::ReadOptions,
     }
 
+    #[experimental]
     pub struct WriteOptions {
         ptr: *mut ffi::WriteOptions,
     }
 
+    #[experimental]
     pub struct Db {
         ptr: *mut ffi::Db,
     }
@@ -122,12 +126,14 @@ pub mod magnetite {
 
     impl Options {
 
+        #[experimental]
         pub fn new() -> Options {
             Options {
                 ptr: unsafe { ffi::rocksdb_options_create() }
             }
         }
 
+        #[experimental]
         pub fn increase_parallelism(&mut self, total_threads: int) {
             unsafe { 
                 ffi::rocksdb_options_increase_parallelism(
@@ -135,6 +141,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn optimize_for_point_lookup(&mut self, block_cache_size_mb: u64) {
             unsafe {
                 ffi::rocksdb_options_optimize_for_point_lookup(
@@ -142,6 +149,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn optimize_level_style_compaction(&mut self, memtable_memory_budget: u64) {
             unsafe {
                 ffi::rocksdb_options_optimize_level_style_compaction(
@@ -149,6 +157,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn optimize_universal_style_compaction(&mut self, memtable_memory_budget: u64) {
             unsafe {
                 ffi::rocksdb_options_optimize_universal_style_compaction(
@@ -156,6 +165,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn set_compression_per_level(&mut self, levels: &[int]) {
             unsafe {
                 let len = levels.len() as libc::size_t;
@@ -166,6 +176,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn set_create_if_missing(&mut self, flag: bool) {
             unsafe {
                 ffi::rocksdb_options_set_create_if_missing(
@@ -173,6 +184,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn set_create_missing_column_families(&mut self, flag: bool) {
             unsafe {
                 ffi::rocksdb_options_set_create_missing_column_families(
@@ -180,6 +192,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn set_error_if_exists(&mut self, flag: bool) {
             unsafe {
                 ffi::rocksdb_options_set_error_if_exists(
@@ -187,6 +200,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn set_paranoid_checks(&mut self, flag: bool) {
             unsafe {
                 ffi::rocksdb_options_set_paranoid_checks(
@@ -196,44 +210,52 @@ pub mod magnetite {
     }
 
     impl Drop for Options {
+        #[experimental]
         fn drop(&mut self) {
             unsafe { ffi::rocksdb_options_destroy(self.ptr); }
         }
     }
 
     impl WriteOptions {
+        #[experimental]
         pub fn new() -> WriteOptions {
             WriteOptions {
                 ptr: unsafe { ffi::rocksdb_writeoptions_create() }
             }
         }
 
+        #[experimental]
         pub fn set_sync(&mut self, flag: bool) {
             unsafe { ffi::rocksdb_writeoptions_set_sync(self.ptr, flag as libc::uint8_t); }
         }
 
+        #[experimental]
         pub fn disable_wal(&mut self, flag: bool) {
             unsafe { ffi::rocksdb_writeoptions_disable_WAL(self.ptr, flag as libc::c_int); }
         }
     }
 
     impl Drop for WriteOptions {
+        #[experimental]
         fn drop(&mut self) {
             unsafe { ffi::rocksdb_writeoptions_destroy(self.ptr); }
         }
     }
 
     impl ReadOptions {
+        #[experimental]
         pub fn new() -> ReadOptions {
             ReadOptions {
                 ptr: unsafe { ffi::rocksdb_readoptions_create() }
             }
         }
 
+        #[experimental]
         pub fn set_verify_checksums(&mut self, flag: bool) {
             unsafe { ffi::rocksdb_readoptions_set_verify_checksums(self.ptr, flag as libc::uint8_t); }
         }
 
+        #[experimental]
         pub fn set_fill_cache(&mut self, flag: bool) {
             unsafe { ffi::rocksdb_readoptions_set_fill_cache(self.ptr, flag as libc::uint8_t); }
         }
@@ -249,22 +271,26 @@ pub mod magnetite {
         //     unsafe { ffi::rocksdb_readoptions_(self.ptr, flag as libc::uint8_t); }
         // }
 
+        #[experimental]
         pub fn set_read_tier(&mut self, tier: int) {
             unsafe { ffi::rocksdb_readoptions_set_read_tier(self.ptr, tier as libc::c_int); }
         }
 
+        #[experimental]
         pub fn set_tailing(&mut self, flag: bool) {
             unsafe { ffi::rocksdb_readoptions_set_tailing(self.ptr, flag as libc::uint8_t); }
         }
     }
 
     impl Drop for ReadOptions {
+        #[experimental]
         fn drop(&mut self) {
             unsafe { ffi::rocksdb_readoptions_destroy(self.ptr); }
         }
     }
 
     impl Db {
+        #[experimental]
         pub fn new(opts: &Options, name: &str) -> Result<Db, String> {
             use std::ptr;
             use std::c_str::CString;
@@ -296,6 +322,7 @@ pub mod magnetite {
         //     }
         // }
 
+        #[experimental]
         pub fn get(&mut self, read_opts: &ReadOptions, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
             use std::ptr;
             use std::c_str::CString;
@@ -332,6 +359,7 @@ pub mod magnetite {
             }
         }
 
+        #[experimental]
         pub fn put(&mut self, write_opts: &WriteOptions, key: &[u8], val: &[u8])
                    -> Result<(), String> {
             use std::ptr;
@@ -362,6 +390,7 @@ pub mod magnetite {
     }
 
     impl Drop for Db {
+        #[experimental]
         fn drop(&mut self) {
             unsafe { ffi::rocksdb_close(self.ptr); }
         }
