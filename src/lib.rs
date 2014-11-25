@@ -343,8 +343,7 @@ pub mod magnetite {
                         None
 
                     } else {
-                        use std::vec::raw;
-                        let arr = raw::from_buf(ptr as *const u8, vallen as uint);
+                        let arr = Vec::from_raw_buf(ptr as *const u8, vallen as uint);
                         libc::free(ptr as *mut libc::c_void);
                         Some(arr)
                     })
