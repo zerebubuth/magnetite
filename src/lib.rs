@@ -8,7 +8,7 @@ pub mod magnetite {
         pub enum Options {}
         pub enum WriteOptions {}
         pub enum ReadOptions {}
-        // pub enum Snapshot {}
+        pub enum Snapshot {}
 
         #[link(name = "rocksdb")]
         extern "C" {
@@ -65,8 +65,8 @@ pub mod magnetite {
                 opts: *mut ReadOptions, flag: libc::uint8_t);
             pub fn rocksdb_readoptions_set_fill_cache(
                 opts: *mut ReadOptions, flag: libc::uint8_t);
-            // pub fn rocksdb_readoptions_set_snapshot(
-            //     opts: *mut ReadOptions, snapshot: *const Snapshot);
+            pub fn rocksdb_readoptions_set_snapshot(
+                opts: *mut ReadOptions, snapshot: *const Snapshot);
             // pub fn rocksdb_readoptions_set_iterate_upper_bound(
             //     opts: *mut ReadOptions, key: *const libc::c_char,
             //     key_len: libc::size_t);
@@ -81,7 +81,7 @@ pub mod magnetite {
                 errptr: *mut *mut libc::c_char)
                 -> *mut Db;
             pub fn rocksdb_close(db: *mut Db);
-            // pub fn rocksdb_create_snapshot(db: *mut Db) -> *const Snapshot;
+            pub fn rocksdb_create_snapshot(db: *mut Db) -> *const Snapshot;
             pub fn rocksdb_get(
                 db: *mut Db, read_opts: *const ReadOptions,
                 key: *const libc::c_char, keylen: libc::size_t,
@@ -94,8 +94,8 @@ pub mod magnetite {
                 val: *const libc::c_char, vallen: libc::size_t,
                 errptr: *mut *mut libc::c_char);
                 
-            // pub fn rocksdb_release_snapshot(
-            //     db: *mut Db, snapshot: *const Snapshot);
+            pub fn rocksdb_release_snapshot(
+                db: *mut Db, snapshot: *const Snapshot);
         }
     }
 
@@ -119,10 +119,11 @@ pub mod magnetite {
         ptr: *mut ffi::Db,
     }
 
-    // pub struct Snapshot<'a> {
-    //     db: &'a Db,
-    //     ptr: *const ffi::Snapshot,
-    // }
+    #[experimental]
+    pub struct Snapshot {
+        db: *mut ffi::Db,
+        ptr: *const ffi::Snapshot,
+    }
 
     impl Options {
 
@@ -260,9 +261,10 @@ pub mod magnetite {
             unsafe { ffi::rocksdb_readoptions_set_fill_cache(self.ptr, flag as libc::uint8_t); }
         }
 
-        // pub fn set_snapshot(&mut self, snapshot: &Snapshot) {
-        //     unsafe { ffi::rocksdb_readoptions_set_snapshot(self.ptr, snapshot.ptr); }
-        // }
+        #[experimental]
+        pub fn set_snapshot(&mut self, snapshot: &Snapshot) {
+            unsafe { ffi::rocksdb_readoptions_set_snapshot(self.ptr, snapshot.ptr); }
+        }
 
         // NOTE: this is totally broken - it assigns a pointer from the stack, and
         // the lifetime / ownership is not specified.
@@ -315,12 +317,13 @@ pub mod magnetite {
             }
         }
 
-        // pub fn snapshot(&mut self) -> Snapshot {
-        //     Snapshot {
-        //         db: self,
-        //         ptr: unsafe { ffi::rocksdb_create_snapshot(self.ptr) }
-        //     }
-        // }
+        #[experimental]
+        pub fn snapshot(&mut self) -> Snapshot {
+            Snapshot {
+                db: self.ptr,
+                ptr: unsafe { ffi::rocksdb_create_snapshot(self.ptr) }
+            }
+        }
 
         #[experimental]
         pub fn get(&mut self, read_opts: &ReadOptions, key: &[u8]) -> Result<Option<Vec<u8>>, String> {
@@ -395,26 +398,12 @@ pub mod magnetite {
         }
     }
 
-    /* TODO: fix this error!
-/src/lib.rs:295:5: 299:6 error: cannot implement a destructor on a structure with type parameters [E0141]
-/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
-/src/lib.rs:296         fn drop(&mut self) {
-/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
-/src/lib.rs:298         }
-/src/lib.rs:299     }
-/src/lib.rs:295:5: 299:6 note: use "#[unsafe_destructor]" on the implementation to force the compiler to allow this
-/src/lib.rs:295     impl<'a> Drop for Snapshot<'a> {
-/src/lib.rs:296         fn drop(&mut self) {
-/src/lib.rs:297             unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
-/src/lib.rs:298         }
-/src/lib.rs:299     }
-
-     */
-    // impl<'a> Drop for Snapshot<'a> {
-    //     fn drop(&mut self) {
-    //         unsafe { ffi::rocksdb_release_snapshot(self.db.ptr, self.ptr); }
-    //     }
-    // }
+    impl Drop for Snapshot {
+        #[experimental]
+        fn drop(&mut self) {
+            unsafe { ffi::rocksdb_release_snapshot(self.db, self.ptr); }
+        }
+    }
 }
 
 #[test]
@@ -454,4 +443,48 @@ fn test_db() {
     let second_value = db.get(&read_opts, key.as_slice()).unwrap();
     assert!(second_value.is_some());
     assert!(second_value.unwrap().as_slice() == val.as_slice());
+}
+
+#[test]
+fn test_snapshot() {
+    use std::io;
+
+    let mut opts = magnetite::Options::new();
+    let tmpdir = io::TempDir::new("magnetite_create_db").unwrap();
+    let dbpath = tmpdir.path().join("db");
+    let tmppath = dbpath.as_str().unwrap();
+
+    let write_opts = magnetite::WriteOptions::new();
+    let read_opts = magnetite::ReadOptions::new();
+
+    opts.set_create_if_missing(true);
+    let mut db = magnetite::Db::new(&opts, tmppath).unwrap();
+
+    let key = [104u8, 101u8, 108u8, 108u8, 111u8];
+    let val = [119u8, 111u8, 114u8, 108u8, 100u8];
+    let first_value = db.get(&read_opts, key.as_slice()).unwrap();
+    assert!(first_value.is_none());
+    db.put(&write_opts, key.as_slice(), val.as_slice()).unwrap();
+    let second_value = db.get(&read_opts, key.as_slice()).unwrap();
+    assert!(second_value.is_some());
+    assert!(second_value.unwrap().as_slice() == val.as_slice());
+
+    // take snapshot
+    let snapshot = db.snapshot();
+
+    // then alter the key we're about to read
+    let val2 = [119u8, 111u8, 114u8, 108u8, 100u8, 50u8];
+    db.put(&write_opts, key.as_slice(), val2.as_slice()).unwrap();
+
+    // read snapshot should return old value
+    let mut read_opts_snap = magnetite::ReadOptions::new();
+    read_opts_snap.set_snapshot(&snapshot);
+    let third_value = db.get(&read_opts_snap, key.as_slice()).unwrap();
+    assert!(third_value.is_some());
+    assert!(third_value.unwrap().as_slice() == val.as_slice());
+
+    // but a read outside the snapshot returns the new value
+    let fourth_value = db.get(&read_opts, key.as_slice()).unwrap();
+    assert!(fourth_value.is_some());
+    assert!(fourth_value.unwrap().as_slice() == val2.as_slice());
 }
